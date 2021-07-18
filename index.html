@@ -1,0 +1,197 @@
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title></title>
+    <meta name="viewport" content="width=device-width">
+    <link rel="stylesheet" href="styles/style.css">
+    <script type='text/javascript' src="view/viewBackground.js"></script>
+    <script type='text/javascript' src="model/modelBlock.js"></script>
+    <script type='text/javascript' src="view/viewBlock.js"></script>
+    <script type='text/javascript' src="model/modelCable.js"></script>
+    <script type='text/javascript' src="view/viewCable.js"></script>
+    <script type='text/javascript' src="controller/controller.js"></script>
+    <script type='text/javascript' src="model/modelGame.js"></script>
+    <script type="text/javascript" src="http://fe.it-academy.by/JQ/jquery.js"></script>
+    <script type='text/javascript' src="model/AJAXmodel.js"></script>
+  </head>
+  <body>
+
+<div id='IPage'>
+</div>
+
+<div class="list-block">
+  <ul class="list">
+    <li><input class="buttons" type="button" value="New Game" onclick="switchToGamePage()"></li>
+    <li><input class="buttons" type=button value='Rules' onclick='switchToRulesPage()'></li>
+    <!-- <li><input class="buttons" type=button value='Records' onclick='switchToRecordsPage()'></li> -->
+  </ul>
+</div>
+
+<!-- sounds -->
+<audio id='background' preload loop>
+    <source src="sounds/backgroundGameMusic.mp3" type="audio/mpeg">
+</audio>
+<audio id='bingo' preload>
+    <source src="sounds/bingo.mp3" type="audio/mpeg">
+</audio>
+<audio id='slip' preload>
+    <source src="sounds/slip.mp3" type="audio/mpeg">
+</audio>
+<audio id='over' preload>
+    <source src="sounds/gameOver.mp3" type="audio/mpeg">
+</audio>
+<audio id='bell' preload>
+    <source src="sounds/bells.mp3" type="audio/mpeg">
+</audio>
+
+<script>
+
+  "use strict";
+let game;
+let startFlag;                                             //флаг, что бы не запускалась игра повторно до завершения
+let nextLevelFlag = true;                                         //флаг перехода на другой уровень
+let menuList = document.querySelector('.list-block');
+let numberOfLevel = 1;                                            //номер уровня
+
+
+
+  // отслеживаем изменение закладки в УРЛе
+  // оно происходит при любом виде навигации
+  // в т.ч. при нажатии кнопок браузера ВПЕРЁД/НАЗАД
+  window.onhashchange=switchToStateFromURLHash;
+
+  // текущее состояние приложения
+  // это Model из MVC
+  var SPAState={};
+  // вызывается при изменении закладки УРЛа
+  // а также при первом открытии страницы
+  // читает новое состояние приложения из закладки УРЛа
+  // и обновляет ВСЮ вариабельную часть веб-страницы
+  // соответственно этому состоянию
+  // это упрощённая реализация РОУТИНГА - автоматического выполнения нужных
+  // частей кода в зависимости от формы URLа
+  // "роутинг" и есть "контроллер" из MVC - управление приложением через URL
+  function switchToStateFromURLHash() {
+    if(game){
+      game.soundStop(background);          //выключает звук при выходе из игры
+    }
+
+    var URLHash=window.location.hash;
+
+    // убираем из закладки УРЛа решётку
+    // (по-хорошему надо ещё убирать восклицательный знак, если есть)
+    var stateStr=URLHash.substr(1);
+
+    if ( stateStr!="" ) // если закладка непустая, читаем из неё состояние и отображаем
+    {
+      SPAState={ pagename: stateStr }; // первая часть закладки - номер страницы
+    }
+    else
+      SPAState={pagename:'Main'}; // иначе показываем главную страницу
+
+    console.log('Новое состояние приложения:');
+    console.log(SPAState);
+
+    // обновляем вариабельную часть страницы под текущее состояние
+    // это реализация View из MVC - отображение состояния модели в HTML-код
+    let pageHTML="";
+    switch ( SPAState.pagename ) {
+      case 'Main':
+        pageHTML+="<div class='main'>";
+        pageHTML+="<div class='logo'></div>";
+        pageHTML+="</div>";
+        nextLevelFlag = true;
+        numberOfLevel = 1;
+        break;
+      case 'Game':
+        pageHTML+="<div class='rotate-to-portrait'><span>Turn the screen</span></div>";
+        pageHTML+="<div class='game-block'>";
+        pageHTML+="<div class='new-level'></div>";
+        pageHTML+="<input class='buttons main-menu-bottom' type='button' value='Back To Menu' onclick='switchToMainPage()'>";
+        pageHTML+="<input class='buttons new-game-bottom' type='button' value='New Game' onclick='switchToStateFromURLHash()'>";
+        pageHTML+="<div class='main-field' style='text-align : center;'>";
+        pageHTML+="<svg id='field' style=''></svg>";
+        pageHTML+="<div class='game-over'><p>Game Over</p></div>";
+        pageHTML+="</div>";
+        pageHTML+="<div class='record-background'>";
+        pageHTML+="<div class='save-record'>";
+        pageHTML+="<span>Enter your name:</span>";
+        pageHTML+="<input class='name-field' type='text' name='name' id='name' autofocus><br>";
+        pageHTML+="<input class='record-button' type='button' value='Continue' onclick='recordOfPoints(points, lastRecords)'>";
+        pageHTML+="</div>";
+        pageHTML+="</div>";
+        pageHTML+="</div>";
+        break;
+      case 'Rules':
+        pageHTML+="<input class='buttons main-menu-bottom' type=button value='Back To Menu' onclick='switchToMainPage()'>";
+        pageHTML+="<div class='rules'>";
+        pageHTML+="<p class='title'>Rules<p>";
+        pageHTML+="<p>Just touch, click or push \"space\" and build your skyscrapers!</p>";
+        pageHTML+="</div>";
+        break;
+      case 'Records':
+        pageHTML+="<input class='buttons main-menu-bottom' type=button value='Back To Menu' onclick='switchToMainPage()'>";
+        pageHTML+="<h3 class='records'>Records</h3>";
+        pageHTML+="<table class='table' align='center'>";
+          for (let i = 0; i < lastRecords.length; i++){
+            pageHTML+="<tr><td>"+(i+1)+"</td><td>"+lastRecords[i]["name"]+"</td><td>"+lastRecords[i]["point"]+"</td></tr>";
+          }
+        pageHTML+="</table>";
+         break;
+    }
+
+    document.getElementById('IPage').innerHTML=pageHTML;
+
+    if (SPAState.pagename == 'Game'){
+      startFlag = true;                                                 //меняем флаг для запуска игры при возврате на вкладку
+      game = new modelGame();
+      game.start();
+    }
+
+
+    if (SPAState.pagename != 'Main'){
+      menuList.style.display = 'none';          //скрывеем меню во время игры
+    }else {
+      menuList.style.display = '';
+    }
+  }
+
+  // устанавливает в закладке УРЛа новое состояние приложения
+  // и затем устанавливает+отображает это состояние
+  function switchToState(newState) {
+    // устанавливаем закладку УРЛа
+    // нужно для правильной работы кнопок навигации браузера
+    // (т.к. записывается новый элемент истории просмотренных страниц)
+    // и для возможности передачи УРЛа другим лицам
+    var stateStr=newState.pagename;
+    location.hash=stateStr;
+
+    // АВТОМАТИЧЕСКИ вызовется switchToStateFromURLHash()
+    // т.к. закладка УРЛа изменилась (ЕСЛИ она действительно изменилась)
+  }
+
+  function switchToMainPage() {
+    switchToState( { pagename:'Main' } );
+    document.removeEventListener("keydown", game.controllerBlockMain.downKey);
+  }
+
+  function switchToGamePage(photoId) {
+    switchToState( { pagename:'Game'} );
+  }
+
+  function switchToRulesPage() {
+    switchToState( { pagename:'Rules' } );
+  }
+
+  function switchToRecordsPage() {
+    switchToState( { pagename:'Records' } );
+  }
+
+  // переключаемся в состояние, которое сейчас прописано в закладке УРЛ
+  switchToStateFromURLHash();
+
+</script>
+  </body>
+</html>
